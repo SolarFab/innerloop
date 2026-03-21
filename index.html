@@ -772,11 +772,11 @@ async function loadTodayTab() {
 
     // Hero
     const heroBz = document.getElementById('hero-bz');
-    heroBz.textContent = value_mgdl;
-    setBzColor(heroBz, value_mgdl);
+    if(heroBz) heroBz.textContent = value_mgdl;
+    if(heroBz) setBzColor(heroBz, value_mgdl);
     const heroTrend = document.getElementById('hero-trend');
-    heroTrend.textContent = trendArrow(trend);
-    heroTrend.style.color = bzColor(value_mgdl);
+    if(heroTrend) heroTrend.textContent = trendArrow(trend);
+    if(heroTrend) heroTrend.style.color = bzColor(value_mgdl);
   } else {
     document.getElementById('hero-meta').textContent = 'No recent blood sugar data';
   }
