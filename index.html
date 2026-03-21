@@ -495,7 +495,14 @@ html, body {
       </div>
 
       <div class="card">
-        <div class="card-title">Blood Sugar + Heart Rate — Today</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="card-title" style="margin-bottom:0">Blood Sugar + Heart Rate</div>
+          <div id="chart-range-btns" style="display:flex;gap:5px">
+            <button onclick="setChartRange(6,this)" style="padding:3px 9px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--muted);font-size:11px;cursor:pointer">6h</button>
+            <button onclick="setChartRange(12,this)" style="padding:3px 9px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--muted);font-size:11px;cursor:pointer">12h</button>
+            <button onclick="setChartRange(24,this)" style="padding:3px 9px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:11px;cursor:pointer">24h</button>
+          </div>
+        </div>
         <div class="chart-wrap">
           <canvas id="today-chart"></canvas>
         </div>
