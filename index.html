@@ -1008,7 +1008,7 @@ async function loadTodayChart(hours) {
           position: 'left',
           min: 50,
           max: 190,
-          ticks: { color: '#00e676', font: { size: 9 }, maxTicksLimit: 5 },
+          ticks: { color: '#00e676', font: { size: 9 }, maxTicksLimit: 5, callback: v => v + ' mg/dL' },
           grid: { color: 'rgba(255,255,255,0.05)' }
         },
         y2: {
@@ -1018,7 +1018,7 @@ async function loadTodayChart(hours) {
           max: 200,
           display: hasHR,
           grid: { display: false },
-          ticks: { color: '#f48fb1', font: { size: 9 }, maxTicksLimit: 4 }
+          ticks: { color: '#f48fb1', font: { size: 9 }, maxTicksLimit: 4, callback: v => v + ' bpm' }
         }
       }
     }
