@@ -941,30 +941,39 @@ async function loadTodayChart(hours) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          filter: item => item.datasetIndex === 0 || item.datasetIndex === 1,
-          displayColors: true,
+          filter: item => item.datasetIndex === 0,
+          displayColors: false,
           callbacks: {
             title: ctx => {
-              const bz = ctx.find(c => c.datasetIndex === 0);
-              if (!bz) return '';
-              const d = new Date(bz.parsed.x);
+              if (!ctx.length) return '';
+              const d = new Date(ctx[0].parsed.x);
               return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
             },
             label: ctx => {
-              if (ctx.datasetIndex === 0) return ' ' + ctx.parsed.y + ' mg/dL';
-              if (ctx.datasetIndex === 1) return ' ' + Math.round(ctx.parsed.y) + ' bpm';
-              return '';
-            },
-            labelColor: ctx => ({
-              borderColor: ctx.datasetIndex === 0 ? '#00e676' : '#f48fb1',
-              backgroundColor: ctx.datasetIndex === 0 ? '#00e676' : '#f48fb1',
-              borderRadius: 3
-            })
+              if (ctx.datasetIndex !== 0) return '';
+              const bzVal = ctx.parsed.y;
+              const bzTime = ctx.parsed.x;
+              // Find closest HR within ±2.5min
+              const chart = ctx.chart;
+              const hrDataset = chart.data.datasets[1];
+              let hrVal = null;
+              if (hrDataset && hrDataset.data && hrDataset.data.length) {
+                let minDiff = Infinity;
+                for (const pt of hrDataset.data) {
+                  const diff = Math.abs(pt.x - bzTime);
+                  if (diff < minDiff) { minDiff = diff; hrVal = pt.y; }
+                }
+                if (minDiff > 150000) hrVal = null; // >2.5min = no match
+              }
+              const lines = [' 🩸 ' + bzVal + ' mg/dL'];
+              if (hrVal !== null) lines.push(' ❤️ ' + Math.round(hrVal) + ' bpm');
+              return lines;
+            }
           },
           backgroundColor: 'rgba(15,15,26,0.97)',
-          borderColor: '#334',
+          borderColor: '#00e676',
           borderWidth: 1,
-          titleColor: '#aaa',
+          titleColor: '#888',
           bodyColor: '#fff',
           bodyFont: { size: 14, weight: '600' },
           padding: 10
