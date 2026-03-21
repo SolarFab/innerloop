@@ -937,37 +937,39 @@ async function loadTodayChart(hours) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false, axis: 'x' },
+      interaction: { mode: 'index', intersect: false, axis: 'x' },  // snap to nearest BZ on x
       plugins: {
         legend: { display: false },
         tooltip: {
-          filter: item => item.datasetIndex === 0,
           displayColors: false,
           callbacks: {
             title: ctx => {
-              if (!ctx.length) return '';
-              const d = new Date(ctx[0].parsed.x);
+              const bz = ctx.find(c => c.datasetIndex === 0);
+              if (!bz) return '';
+              const d = new Date(bz.parsed.x);
               return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
             },
             label: ctx => {
-              if (ctx.datasetIndex !== 0) return '';
-              const bzVal = ctx.parsed.y;
-              const bzTime = ctx.parsed.x;
-              // Find closest HR within ±2.5min
-              const chart = ctx.chart;
-              const hrDataset = chart.data.datasets[1];
-              let hrVal = null;
-              if (hrDataset && hrDataset.data && hrDataset.data.length) {
-                let minDiff = Infinity;
-                for (const pt of hrDataset.data) {
-                  const diff = Math.abs(pt.x - bzTime);
-                  if (diff < minDiff) { minDiff = diff; hrVal = pt.y; }
+              if (ctx.datasetIndex === 2) return ''; // hide meal scatter
+              if (ctx.datasetIndex === 0) {
+                const bzVal = ctx.parsed.y;
+                const bzTime = ctx.parsed.x;
+                const chart = ctx.chart;
+                const hrDataset = chart.data.datasets[1];
+                let hrVal = null;
+                if (hrDataset && hrDataset.data && hrDataset.data.length) {
+                  let minDiff = Infinity;
+                  for (const pt of hrDataset.data) {
+                    const diff = Math.abs(new Date(pt.x).getTime() - bzTime);
+                    if (diff < minDiff) { minDiff = diff; hrVal = pt.y; }
+                  }
+                  if (minDiff > 150000) hrVal = null;
                 }
-                if (minDiff > 150000) hrVal = null; // >2.5min = no match
+                const lines = [' 🩸 ' + bzVal + ' mg/dL'];
+                if (hrVal !== null) lines.push(' ❤️ ' + Math.round(hrVal) + ' bpm');
+                return lines;
               }
-              const lines = [' 🩸 ' + bzVal + ' mg/dL'];
-              if (hrVal !== null) lines.push(' ❤️ ' + Math.round(hrVal) + ' bpm');
-              return lines;
+              return '';
             }
           },
           backgroundColor: 'rgba(15,15,26,0.97)',
