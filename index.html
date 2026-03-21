@@ -10,6 +10,7 @@
 <link rel="manifest" href="/manifest.json">
 <title>Innerloop 🔄</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
 :root {
   --bg: #0f0f1a;
@@ -811,117 +812,181 @@ async function loadSummaryStrip() {
 
 async function loadTodayChart() {
   const [bzRows, hrRows, mealRows] = await Promise.all([
-    db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp >= CURRENT_DATE ORDER BY timestamp ASC`),
-    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp >= CURRENT_DATE ORDER BY timestamp ASC`),
-    db(`SELECT timestamp, mahlzeit, kalorien FROM mahlzeiten WHERE timestamp >= CURRENT_DATE ORDER BY timestamp ASC`)
+    db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp > NOW() - INTERVAL '1 day' ORDER BY timestamp ASC LIMIT 500`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp > NOW() - INTERVAL '1 day' ORDER BY timestamp ASC LIMIT 300`),
+    db(`SELECT timestamp, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, gi_schaetzung FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '1 day' ORDER BY timestamp ASC`)
   ]);
 
   destroyChart('today');
   const ctx = document.getElementById('today-chart').getContext('2d');
 
-  const bzLabels = bzRows.map(r => fmtTime(r.timestamp));
-  const bzData = bzRows.map(r => r.value_mgdl);
+  const bzData = bzRows.map(r => ({ x: new Date(r.timestamp), y: Number(r.value_mgdl) }));
+  const hrData = hrRows.filter((_,i) => i%2===0).map(r => ({ x: new Date(r.timestamp), y: Number(r.value) }));
+  const yMin = bzData.length ? Math.max(50, Math.min(...bzData.map(d=>d.y)) - 10) : 50;
 
-  // Sample HR to reduce points
-  const hrSampled = hrRows.filter((_, i) => i % 3 === 0);
+  // Meal scatter data
+  const mealScatter = mealRows.map(m => ({ x: new Date(m.timestamp), y: yMin + 3, meal: m }));
 
-  // Meal annotation dots
-  const mealPoints = mealRows.map(m => ({
-    x: fmtTime(m.timestamp),
-    y: 180,
-    meal: m.mahlzeit,
-    kcal: m.kalorien,
-    time: fmtTime(m.timestamp)
-  }));
-
-  // Target range plugin
-  const targetRangePlugin = {
-    id: 'targetRange',
-    beforeDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      if (!chartArea) return;
-      const yLow = scales.y.getPixelForValue(70);
-      const yHigh = scales.y.getPixelForValue(180);
-      ctx.save();
-      ctx.fillStyle = 'rgba(0,230,118,0.06)';
-      ctx.fillRect(chartArea.left, yHigh, chartArea.right - chartArea.left, yLow - yHigh);
-      ctx.restore();
+  // Crosshair plugin
+  const crosshairPlugin = {
+    id: 'crosshair',
+    afterDraw(chart) {
+      if (!chart._cx) return;
+      const { ctx: c, chartArea: { top, bottom } } = chart;
+      c.save();
+      c.beginPath();
+      c.moveTo(chart._cx, top);
+      c.lineTo(chart._cx, bottom);
+      c.strokeStyle = 'rgba(255,255,255,0.2)';
+      c.lineWidth = 1;
+      c.setLineDash([4,4]);
+      c.stroke();
+      c.restore();
     }
   };
 
+  // Annotations: meal lines
+  const annotations = {};
+  mealRows.forEach((m, i) => {
+    annotations['ml'+i] = {
+      type: 'line',
+      xMin: new Date(m.timestamp),
+      xMax: new Date(m.timestamp),
+      borderColor: 'rgba(255,152,0,0.45)',
+      borderWidth: 1.5,
+      borderDash: [4,3]
+    };
+  });
+  annotations['hi'] = { type: 'line', yMin: 180, yMax: 180, borderColor: 'rgba(255,82,82,0.35)', borderWidth: 1, borderDash: [4,3] };
+  annotations['lo'] = { type: 'line', yMin: 70, yMax: 70, borderColor: 'rgba(255,82,82,0.35)', borderWidth: 1, borderDash: [4,3] };
+  annotations['band'] = { type: 'box', yMin: 70, yMax: 180, backgroundColor: 'rgba(0,230,118,0.05)', borderWidth: 0 };
+
+  const hasHR = hrData.length > 0;
+
   state.charts.today = new Chart(ctx, {
+    plugins: [crosshairPlugin, ChartAnnotation],
     type: 'line',
-    plugins: [targetRangePlugin],
     data: {
-      labels: bzLabels,
       datasets: [
         {
           label: 'BZ',
           data: bzData,
-          borderColor: 'var(--green)',
-          backgroundColor: 'rgba(0,230,118,0.1)',
+          borderColor: '#00e676',
+          backgroundColor: 'rgba(0,230,118,0.08)',
           borderWidth: 2,
           pointRadius: 0,
-          tension: 0.3,
-          yAxisID: 'y'
+          tension: 0.2,
+          yAxisID: 'y',
+          segment: { borderColor: ctx => { const v = ctx.p1.parsed.y; return v < 70 || v > 180 ? '#ff5252' : '#00e676'; } }
         },
         {
           label: 'HR',
-          data: hrSampled.map(r => ({ x: fmtTime(r.timestamp), y: r.value })),
-          borderColor: 'var(--pink)',
-          backgroundColor: 'rgba(244,143,177,0.08)',
-          borderWidth: 1.5,
+          data: hrData,
+          borderColor: '#f48fb1',
+          backgroundColor: 'rgba(244,143,177,0.06)',
+          borderWidth: hasHR ? 1.5 : 0,
           pointRadius: 0,
           tension: 0.3,
-          yAxisID: 'y2'
+          yAxisID: 'y2',
+          hidden: !hasHR
         },
         {
-          label: 'Meal',
-          data: mealPoints,
           type: 'scatter',
-          pointRadius: 7,
-          pointBackgroundColor: 'var(--orange)',
-          pointBorderColor: 'var(--bg)',
-          pointBorderWidth: 2,
+          label: 'Meal',
+          data: mealScatter,
+          pointBackgroundColor: '#ff9800',
+          pointBorderColor: '#0f0f1a',
+          pointBorderWidth: 1.5,
+          pointRadius: 6,
+          pointHoverRadius: 9,
           yAxisID: 'y',
           showLine: false
         }
       ]
     },
     options: {
-      ...chartDefaults(),
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false, axis: 'x' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: item => item.datasetIndex === 0,
+          displayColors: false,
+          callbacks: {
+            title: ctx => { const d = new Date(ctx[0].parsed.x); return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' }); },
+            label: ctx => ctx.parsed.y + ' mg/dL'
+          },
+          backgroundColor: 'rgba(15,15,26,0.97)',
+          borderColor: '#00e676',
+          borderWidth: 1,
+          titleColor: '#888',
+          bodyColor: '#00e676',
+          bodyFont: { size: 16, weight: 'bold' },
+          padding: 10
+        },
+        annotation: { annotations }
+      },
       scales: {
         x: {
-          grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: '#8888aa', font: { size: 9 }, maxTicksLimit: 6 }
+          type: 'time',
+          time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+          ticks: { color: '#666', maxTicksLimit: 7 },
+          grid: { color: 'rgba(255,255,255,0.04)' }
         },
         y: {
           position: 'left',
-          min: 50,
-          grid: { color: 'rgba(255,255,255,0.06)' },
-          ticks: { color: 'var(--green)', font: { size: 9 }, maxTicksLimit: 5 }
+          min: yMin,
+          max: bzData.length ? Math.max(...bzData.map(d=>d.y)) + 15 : 200,
+          ticks: { color: '#00e676', font: { size: 9 }, maxTicksLimit: 5 },
+          grid: { color: 'rgba(255,255,255,0.05)' }
         },
         y2: {
           position: 'right',
           min: 40,
           max: 180,
+          display: hasHR,
           grid: { display: false },
-          ticks: { color: 'var(--pink)', font: { size: 9 }, maxTicksLimit: 4 }
-        }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              if (ctx.dataset.label === 'Meal') return `🍽 ${ctx.raw.meal} ${ctx.raw.kcal ? '('+ctx.raw.kcal+' kcal)' : ''}`;
-              return `${ctx.dataset.label}: ${Math.round(ctx.raw.y ?? ctx.raw)}`;
-            }
-          }
+          ticks: { color: '#f48fb1', font: { size: 9 }, maxTicksLimit: 4 }
         }
       }
     }
   });
+
+  // Touch/mouse crosshair
+  const canvasEl = document.getElementById('today-chart');
+  const moveCx = (evt) => {
+    const rect = canvasEl.getBoundingClientRect();
+    const cx = (evt.touches ? evt.touches[0].clientX : evt.clientX) - rect.left;
+    const { left, right } = state.charts.today.chartArea;
+    state.charts.today._cx = cx >= left && cx <= right ? cx : null;
+    state.charts.today.draw();
+  };
+  canvasEl.addEventListener('mousemove', moveCx);
+  canvasEl.addEventListener('touchmove', moveCx, { passive: true });
+  canvasEl.addEventListener('mouseleave', () => { state.charts.today._cx = null; state.charts.today.draw(); });
+  canvasEl.addEventListener('touchend', () => { state.charts.today._cx = null; state.charts.today.draw(); });
+
+  // Tap meal dots
+  canvasEl.onclick = (evt) => {
+    const pts = state.charts.today.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+    if (!pts.length) return;
+    const pt = pts[0];
+    if (pt.datasetIndex !== 2) return;
+    const m = mealScatter[pt.index].meal;
+    const giColor = m.gi_schaetzung === 'hoch' ? '#ff5252' : m.gi_schaetzung === 'mittel' ? '#ff9800' : '#00e676';
+    const popup = document.getElementById('meal-popup');
+    document.getElementById('popup-name').textContent = '🍽️ ' + m.mahlzeit;
+    document.getElementById('popup-time').textContent = new Date(m.timestamp).toLocaleString(undefined, { weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+    document.getElementById('popup-macros').innerHTML = [
+      m.kalorien ? `<span class="macro-tag kcal">${m.kalorien} kcal</span>` : '',
+      m.kohlenhydrate_g ? `<span class="macro-tag kh">${m.kohlenhydrate_g}g KH</span>` : '',
+      m.protein_g ? `<span class="macro-tag protein">${m.protein_g}g P</span>` : '',
+      m.fett_g ? `<span class="macro-tag" style="color:#ce93d8;border-color:#ce93d8">${m.fett_g}g F</span>` : '',
+      m.gi_schaetzung ? `<span class="macro-tag" style="color:${giColor};border-color:${giColor}">GI ${m.gi_schaetzung}</span>` : ''
+    ].join('');
+    popup.style.display = 'block';
+  };
 }
 
 async function loadRecentMeals() {
