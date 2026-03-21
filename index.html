@@ -830,6 +830,11 @@ function setChartRange(hours, btn) {
   btn.style.background = 'var(--accent)';
   btn.style.borderColor = 'var(--accent)';
   btn.style.color = 'white';
+  // Destroy existing chart to reset zoom state
+  if (state.charts && state.charts.today) {
+    state.charts.today.destroy();
+    delete state.charts.today;
+  }
   loadTodayChart(hours);
 }
 
