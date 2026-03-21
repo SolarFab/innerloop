@@ -12,6 +12,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
 :root {
@@ -914,21 +916,49 @@ async function loadTodayChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          filter: item => item.datasetIndex === 0,
-          displayColors: false,
+          filter: item => item.datasetIndex === 0 || item.datasetIndex === 1,
+          displayColors: true,
           callbacks: {
-            title: ctx => { const d = new Date(ctx[0].parsed.x); return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' }); },
-            label: ctx => ctx.parsed.y + ' mg/dL'
+            title: ctx => {
+              const bz = ctx.find(c => c.datasetIndex === 0);
+              if (!bz) return '';
+              const d = new Date(bz.parsed.x);
+              return isNaN(d) ? '' : d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+            },
+            label: ctx => {
+              if (ctx.datasetIndex === 0) return ' ' + ctx.parsed.y + ' mg/dL';
+              if (ctx.datasetIndex === 1) return ' ' + Math.round(ctx.parsed.y) + ' bpm';
+              return '';
+            },
+            labelColor: ctx => ({
+              borderColor: ctx.datasetIndex === 0 ? '#00e676' : '#f48fb1',
+              backgroundColor: ctx.datasetIndex === 0 ? '#00e676' : '#f48fb1',
+              borderRadius: 3
+            })
           },
           backgroundColor: 'rgba(15,15,26,0.97)',
-          borderColor: '#00e676',
+          borderColor: '#334',
           borderWidth: 1,
-          titleColor: '#888',
-          bodyColor: '#00e676',
-          bodyFont: { size: 16, weight: 'bold' },
+          titleColor: '#aaa',
+          bodyColor: '#fff',
+          bodyFont: { size: 14, weight: '600' },
           padding: 10
         },
-        annotation: { annotations }
+        annotation: { annotations },
+        zoom: {
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: 'x'
+          },
+          pan: {
+            enabled: true,
+            mode: 'x'
+          },
+          limits: {
+            x: { minRange: 1000 * 60 * 30 }
+          }
+        }
       },
       scales: {
         x: {
@@ -1741,6 +1771,8 @@ async function loadHeartTab() {
 // Register Chart.js plugins
 const ChartAnnotation = window['chartjs-plugin-annotation'];
 if (ChartAnnotation) Chart.register(ChartAnnotation);
+const ChartZoom = window['chartjs-plugin-zoom'];
+if (ChartZoom) Chart.register(ChartZoom);
 
 document.addEventListener('DOMContentLoaded', () => {
   loadTodayTab();
