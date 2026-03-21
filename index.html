@@ -843,7 +843,7 @@ async function loadTodayChart(hours) {
   const [bzRows, hrRows, mealRows] = await Promise.all([
     db(`SELECT to_char(timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') || '+' || LPAD(((EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'Europe/Berlin')) - EXTRACT(EPOCH FROM NOW())) / 3600)::int::text, 2, '0') || ':00' as t, value_mgdl FROM blutzucker WHERE timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp ASC LIMIT 600`),
     db(`SELECT to_char(timestamp AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD"T"HH24:MI:SS') as t, value FROM apple_health WHERE metric='heart_rate' AND timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp ASC`),
-    db(`SELECT to_char(timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') as t, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, gi_schaetzung FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp ASC`)
+    db(`SELECT to_char(timestamp AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD"T"HH24:MI:SS+01:00') as t, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, gi_schaetzung FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp ASC`)
   ]);
 
   destroyChart('today');
