@@ -814,9 +814,9 @@ async function loadSummaryStrip() {
 
 async function loadTodayChart() {
   const [bzRows, hrRows, mealRows] = await Promise.all([
-    db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp >= CURRENT_DATE ORDER BY timestamp ASC LIMIT 500`),
-    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp >= CURRENT_DATE ORDER BY timestamp ASC LIMIT 300`),
-    db(`SELECT timestamp, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, gi_schaetzung FROM mahlzeiten WHERE timestamp >= CURRENT_DATE ORDER BY timestamp ASC`)
+    db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC LIMIT 500`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC LIMIT 300`),
+    db(`SELECT timestamp, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, gi_schaetzung FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC`)
   ]);
 
   destroyChart('today');
