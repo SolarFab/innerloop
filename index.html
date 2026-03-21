@@ -815,19 +815,20 @@ async function loadSummaryStrip() {
 async function loadTodayChart() {
   const [bzRows, hrRows, mealRows] = await Promise.all([
     db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC LIMIT 500`),
-    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC LIMIT 300`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC LIMIT 1000`),
     db(`SELECT timestamp, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, gi_schaetzung FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '24 hours' ORDER BY timestamp ASC`)
   ]);
 
   destroyChart('today');
   const ctx = document.getElementById('today-chart').getContext('2d');
 
-  const bzData = bzRows.map(r => ({ x: new Date(r.timestamp), y: Number(r.value_mgdl) }));
+  // blutzucker timestamps are Berlin local time stored as UTC - parse without tz offset
+  const bzData = bzRows.map(r => ({ x: new Date(r.timestamp.replace(/[+-]\d{2}:\d{2}$/, '').replace('+00','')), y: Number(r.value_mgdl) }));
   const hrData = hrRows.filter((_,i) => i%2===0).map(r => ({ x: new Date(r.timestamp), y: Number(r.value) }));
   const yMin = bzData.length ? Math.max(50, Math.min(...bzData.map(d=>d.y)) - 10) : 50;
 
   // Meal scatter data
-  const mealScatter = mealRows.map(m => ({ x: new Date(m.timestamp), y: yMin + 3, meal: m }));
+  const mealScatter = mealRows.map(m => ({ x: new Date(m.timestamp.replace(/[+-]\d{2}:\d{2}$/, '').replace('+00','')), y: yMin + 3, meal: m }));
 
   // Crosshair plugin
   const crosshairPlugin = {
@@ -852,8 +853,8 @@ async function loadTodayChart() {
   mealRows.forEach((m, i) => {
     annotations['ml'+i] = {
       type: 'line',
-      xMin: new Date(m.timestamp),
-      xMax: new Date(m.timestamp),
+      xMin: new Date(m.timestamp.replace(/[+-]\d{2}:\d{2}$/, '').replace('+00','')),
+      xMax: new Date(m.timestamp.replace(/[+-]\d{2}:\d{2}$/, '').replace('+00','')),
       borderColor: 'rgba(255,152,0,0.45)',
       borderWidth: 1.5,
       borderDash: [4,3]
