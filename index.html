@@ -866,7 +866,7 @@ async function loadTodayChart() {
   const hasHR = hrData.length > 0;
 
   state.charts.today = new Chart(ctx, {
-    plugins: [crosshairPlugin, ChartAnnotation],
+    plugins: [crosshairPlugin],
     type: 'line',
     data: {
       datasets: [
@@ -1736,6 +1736,10 @@ async function loadHeartTab() {
 // ════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════
+// Register Chart.js plugins
+const ChartAnnotation = window['chartjs-plugin-annotation'];
+if (ChartAnnotation) Chart.register(ChartAnnotation);
+
 document.addEventListener('DOMContentLoaded', () => {
   loadTodayTab();
 });
