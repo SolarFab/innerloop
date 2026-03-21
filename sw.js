@@ -1,4 +1,4 @@
-const CACHE = 'innerloop-v1';
+const CACHE = 'innerloop-v5';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -14,12 +14,12 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Network first for API calls
-  if (e.request.url.includes('/api/')) {
-    e.respondWith(fetch(e.request).catch(() => new Response(JSON.stringify({ rows: [] }), { headers: { 'Content-Type': 'application/json' } })));
+  // Network first for API calls and HTML
+  if (e.request.url.includes('/api/') || e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
-  // Cache first for assets
+  // Cache first for other assets
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
       if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
