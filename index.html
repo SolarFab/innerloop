@@ -505,7 +505,7 @@ html, body {
       </div>
 
       <div class="card">
-        <div class="card-title">Recent Meals</div>
+        <div class="card-title">Recent Events</div>
         <div id="recent-meals"><div class="loading">Loading...</div></div>
       </div>
     </div>
@@ -797,7 +797,7 @@ async function loadTodayTab() {
   }
 
   // Summary strip
-  await Promise.all([loadSummaryStrip(), loadTodayChart(), loadRecentMeals()]);
+  await Promise.all([loadSummaryStrip(), loadTodayChart(), loadRecentMeals(hours)]);
 }
 
 async function loadSummaryStrip() {
@@ -1059,26 +1059,55 @@ async function loadTodayChart(hours) {
   };
 }
 
-async function loadRecentMeals() {
-  const rows = await db(`
-    SELECT timestamp, mahlzeit, kalorien FROM mahlzeiten
-    WHERE timestamp > NOW() - INTERVAL '24 hours'
-    ORDER BY timestamp DESC LIMIT 3
-  `);
+async function loadRecentMeals(hours) {
+  hours = hours || 24;
+  const [mealRows, workoutRows] = await Promise.all([
+    db(`SELECT to_char(timestamp AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD"T"HH24:MI:SS+01:00') as t, mahlzeit, kalorien, kohlenhydrate_g FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp DESC LIMIT 10`),
+    db(`SELECT to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS+00:00') as t, metric, value, unit FROM apple_health WHERE metric IN ('WorkoutDuration','WorkoutDistance','WorkoutSpeed') AND timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp DESC LIMIT 15`)
+  ]);
+
+  // Group workouts by timestamp (within 1 min)
+  const workouts = {};
+  for (const w of workoutRows) {
+    const key = w.t.substring(0, 16); // group by minute
+    if (!workouts[key]) workouts[key] = { t: w.t, name: '', duration: null, distance: null, speed: null };
+    if (w.metric === 'WorkoutDuration') { workouts[key].duration = w.value; workouts[key].name = w.unit; }
+    if (w.metric === 'WorkoutDistance') workouts[key].distance = w.value;
+    if (w.metric === 'WorkoutSpeed') workouts[key].speed = w.value;
+  }
+
+  // Merge meals + workouts into events list sorted by time desc
+  const events = [];
+  for (const m of mealRows) {
+    events.push({ t: m.t, type: 'meal', label: m.mahlzeit, sub: [m.kalorien ? m.kalorien + ' kcal' : '', m.kohlenhydrate_g ? m.kohlenhydrate_g + 'g KH' : ''].filter(Boolean).join(' · ') });
+  }
+  for (const w of Object.values(workouts)) {
+    const sub = [
+      w.duration ? Math.round(w.duration) + ' min' : '',
+      w.distance ? Number(w.distance).toFixed(1) + ' km' : '',
+      w.speed ? Number(w.speed).toFixed(1) + ' km/h' : ''
+    ].filter(Boolean).join(' · ');
+    events.push({ t: w.t, type: 'workout', label: w.name || 'Workout', sub });
+  }
+  events.sort((a, b) => new Date(b.t) - new Date(a.t));
+
   const el = document.getElementById('recent-meals');
-  if (!rows.length) { el.innerHTML = '<div class="empty-state">No meals logged today yet</div>'; return; }
-  el.innerHTML = rows.map(r => `
-    <div class="meal-row">
-      <div class="meal-time">${fmtTime(r.timestamp)}</div>
-      <div class="meal-name">${r.mahlzeit}</div>
-      <div class="meal-kcal">${r.kalorien ?? '--'} kcal</div>
-    </div>
-  `).join('');
+  if (!events.length) { el.innerHTML = '<div class="empty-state">No events in this window</div>'; return; }
+
+  el.innerHTML = events.map(e => {
+    const time = new Date(e.t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const icon = e.type === 'meal' ? '🍽️' : '🏃';
+    const color = e.type === 'workout' ? 'var(--green)' : 'var(--text)';
+    return `<div class="meal-row" style="border-color:${e.type==='workout'?'rgba(0,230,118,0.2)':'var(--border)'}">
+      <div class="meal-time">${time}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500;color:${color}">${icon} ${e.label}</div>
+        ${e.sub ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${e.sub}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
-// ════════════════════════════════════════════════
-//  TAB 2: INSIGHTS
-// ════════════════════════════════════════════════
 async function loadInsights() {
   const el = document.getElementById('insights-container');
   el.innerHTML = '<div class="loading">Crunching your data...</div>';
