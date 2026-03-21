@@ -939,15 +939,16 @@ async function loadTodayChart() {
         },
         y: {
           position: 'left',
-          min: yMin,
-          max: bzData.length ? Math.max(...bzData.map(d=>d.y)) + 15 : 200,
+          min: 50,
+          max: 190,
           ticks: { color: '#00e676', font: { size: 9 }, maxTicksLimit: 5 },
           grid: { color: 'rgba(255,255,255,0.05)' }
         },
         y2: {
           position: 'right',
           min: 40,
-          max: 160,
+          min: 30,
+          max: 200,
           display: hasHR,
           grid: { display: false },
           ticks: { color: '#f48fb1', font: { size: 9 }, maxTicksLimit: 4 }
