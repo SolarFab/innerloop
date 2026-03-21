@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Innerloop">
+<link rel="manifest" href="/manifest.json">
+<title>Innerloop 🔄</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --card: #1a1a2e;
+  --border: #2a2a4a;
+  --text: #e8e8f0;
+  --muted: #8888aa;
+  --green: #00e676;
+  --orange: #ff9800;
+  --red: #ff5252;
+  --blue: #448aff;
+  --purple: #7c4dff;
+  --pink: #f48fb1;
+  --yellow: #ffd740;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* ── App shell ── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+#header-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+#header-bz {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+#header-bz .trend { font-size: 18px; }
+
+#refresh-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  transition: transform 0.3s;
+}
+#refresh-btn.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Tab bar ── */
+#tab-bar {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  flex: 1;
+  min-width: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s;
+  font-size: 11px;
+}
+.tab-btn .tab-icon { font-size: 20px; }
+.tab-btn.active { color: var(--blue); }
+
+/* ── Content area ── */
+#content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+.tab-panel {
+  display: none;
+  padding: 12px 12px;
+  padding-bottom: 16px;
+  min-height: 100%;
+}
+.tab-panel.active { display: block; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* ── Hero ── */
+#hero-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+#hero-bz {
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -3px;
+}
+
+#hero-trend {
+  font-size: 36px;
+  margin-top: 2px;
+}
+
+#hero-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ── Summary tiles ── */
+#summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.summary-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.tile-icon { font-size: 18px; margin-bottom: 4px; }
+.tile-value { font-size: 16px; font-weight: 700; }
+.tile-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ── Range buttons ── */
+.range-btns {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.range-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.range-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: white;
+  font-weight: 600;
+}
+
+/* ── Stats row ── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-box {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.stat-value { font-size: 18px; font-weight: 700; }
+.stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ── Chart wrapper ── */
+.chart-wrap {
+  position: relative;
+  height: 200px;
+  margin-bottom: 4px;
+}
+
+/* ── Insight cards ── */
+.insight-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.insight-emoji { font-size: 28px; flex-shrink: 0; }
+.insight-body { flex: 1; }
+.insight-title { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.insight-value { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.insight-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+/* ── Meal log ── */
+.meal-day-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 12px 0 6px;
+}
+
+.meal-row {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 13px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.meal-time { font-size: 12px; color: var(--muted); min-width: 42px; }
+.meal-name { flex: 1; font-size: 14px; font-weight: 500; }
+.meal-kcal { font-size: 13px; color: var(--orange); font-weight: 600; }
+
+/* ── Sleep bar chart ── */
+.sleep-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ── Workout list ── */
+.workout-row {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.workout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.workout-name { font-size: 15px; font-weight: 600; }
+.workout-date { font-size: 12px; color: var(--muted); }
+.workout-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.workout-stat { font-size: 12px; color: var(--muted); }
+.workout-stat span { color: var(--text); font-weight: 600; }
+
+/* ── TIR bar ── */
+.tir-bar-wrap { margin: 10px 0; }
+.tir-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.tir-bar-label { font-size: 12px; color: var(--muted); min-width: 28px; }
+.tir-bar-bg {
+  flex: 1;
+  height: 18px;
+  background: var(--bg);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.tir-bar-fill {
+  height: 100%;
+  border-radius: 9px;
+  transition: width 0.6s ease;
+}
+.tir-bar-pct { font-size: 12px; font-weight: 600; min-width: 38px; text-align: right; }
+
+/* ── Heart metrics ── */
+.heart-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.heart-metric-row:last-child { border-bottom: none; }
+.heart-metric-label { font-size: 13px; color: var(--muted); }
+.heart-metric-value { font-size: 20px; font-weight: 700; }
+
+/* ── Loading / empty ── */
+.loading {
+  text-align: center;
+  color: var(--muted);
+  padding: 30px;
+  font-size: 14px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── Time-of-day row ── */
+.tod-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 8px 0;
+}
+.tod-box {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 8px 4px;
+  text-align: center;
+}
+.tod-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.tod-value { font-size: 16px; font-weight: 700; }
+
+/* ── Tooltip overlay ── */
+#meal-popup {
+  display: none;
+  position: fixed;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  z-index: 1000;
+  max-width: 200px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+
+/* ── Spike ranking ── */
+.spike-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.spike-row:last-child { border-bottom: none; }
+.spike-name { flex: 1; font-size: 13px; }
+.spike-delta { font-size: 14px; font-weight: 700; }
+.spike-bar-wrap { width: 60px; height: 6px; background: var(--border); border-radius: 3px; }
+.spike-bar { height: 100%; border-radius: 3px; background: var(--orange); }
+
+/* ── Sleep phases ── */
+.sleep-phase-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sleep-phase-row:last-child { border-bottom: none; }
+.sleep-phase-name { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.sleep-phase-dot { width: 10px; height: 10px; border-radius: 50%; }
+.sleep-phase-val { font-size: 15px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <div id="header-title">Innerloop 🔄</div>
+    <div id="header-bz">
+      <span id="hdr-bz-val" class="bz-color">--</span>
+      <span id="hdr-trend" class="trend">→</span>
+    </div>
+    <button id="refresh-btn" onclick="refreshAll()" title="Refresh">↻</button>
+  </div>
+
+  <!-- Content -->
+  <div id="content">
+    <!-- Tab 1: Today -->
+    <div id="tab-today" class="tab-panel active">
+      <div id="hero-card">
+        <div id="hero-bz" class="bz-color">--</div>
+        <div id="hero-trend">→</div>
+        <div id="hero-meta">Loading...</div>
+      </div>
+
+      <div id="summary-strip">
+        <div class="summary-tile">
+          <div class="tile-icon">😴</div>
+          <div class="tile-value" id="tile-sleep">--</div>
+          <div class="tile-label">Sleep</div>
+        </div>
+        <div class="summary-tile">
+          <div class="tile-icon">👣</div>
+          <div class="tile-value" id="tile-steps">--</div>
+          <div class="tile-label">Steps</div>
+        </div>
+        <div class="summary-tile">
+          <div class="tile-icon">❤️</div>
+          <div class="tile-value" id="tile-hr">--</div>
+          <div class="tile-label">Rest HR</div>
+        </div>
+        <div class="summary-tile">
+          <div class="tile-icon">💫</div>
+          <div class="tile-value" id="tile-hrv">--</div>
+          <div class="tile-label">HRV</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Blood Sugar + Heart Rate — Today</div>
+        <div class="chart-wrap">
+          <canvas id="today-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recent Meals</div>
+        <div id="recent-meals"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Insights -->
+    <div id="tab-insights" class="tab-panel">
+      <div id="insights-container"><div class="loading">Crunching your data...</div></div>
+    </div>
+
+    <!-- Tab 3: Blood Sugar -->
+    <div id="tab-bz" class="tab-panel">
+      <div class="range-btns">
+        <button class="range-btn active" onclick="setBzRange('1d',this)">Today</button>
+        <button class="range-btn" onclick="setBzRange('7d',this)">7 Days</button>
+        <button class="range-btn" onclick="setBzRange('30d',this)">30 Days</button>
+      </div>
+      <div class="stats-row" id="bz-stats-row">
+        <div class="stat-box"><div class="stat-value" id="bz-avg">--</div><div class="stat-label">Avg</div></div>
+        <div class="stat-box"><div class="stat-value" id="bz-min">--</div><div class="stat-label">Min</div></div>
+        <div class="stat-box"><div class="stat-value" id="bz-max">--</div><div class="stat-label">Max</div></div>
+        <div class="stat-box"><div class="stat-value" id="bz-tir">--%</div><div class="stat-label">TIR</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Blood Sugar</div>
+        <div class="chart-wrap"><canvas id="bz-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Time of Day Average</div>
+        <div class="tod-grid">
+          <div class="tod-box"><div class="tod-label">🌅 Morning</div><div class="tod-value" id="tod-morning">--</div></div>
+          <div class="tod-box"><div class="tod-label">☀️ Afternoon</div><div class="tod-value" id="tod-afternoon">--</div></div>
+          <div class="tod-box"><div class="tod-label">🌆 Evening</div><div class="tod-value" id="tod-evening">--</div></div>
+          <div class="tod-box"><div class="tod-label">🌙 Night</div><div class="tod-value" id="tod-night">--</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">7-Day TIR</div>
+        <div id="tir-bar-container"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Food -->
+    <div id="tab-food" class="tab-panel">
+      <div class="range-btns">
+        <button class="range-btn active" onclick="setFoodRange('1d',this)">Today</button>
+        <button class="range-btn" onclick="setFoodRange('3d',this)">3 Days</button>
+        <button class="range-btn" onclick="setFoodRange('7d',this)">7 Days</button>
+      </div>
+      <div id="food-totals" class="card" style="display:none">
+        <div class="card-title">Daily Totals</div>
+        <div id="food-totals-content"></div>
+      </div>
+      <div id="food-log"><div class="loading">Loading meals...</div></div>
+      <div class="card">
+        <div class="card-title">🏆 Spike Ranking</div>
+        <div id="spike-ranking"><div class="loading">Calculating...</div></div>
+      </div>
+    </div>
+
+    <!-- Tab 5: Sleep -->
+    <div id="tab-sleep" class="tab-panel">
+      <div class="card">
+        <div class="card-title">Last Night</div>
+        <div id="sleep-lastnight"><div class="loading">Loading...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">14-Night History</div>
+        <div class="sleep-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#1a237e"></div>Deep</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>REM</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Core</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--muted)"></div>Awake</div>
+        </div>
+        <div class="chart-wrap" style="height:180px"><canvas id="sleep-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Average Trend</div>
+        <div id="sleep-avg-trend"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Tab 6: Workouts -->
+    <div id="tab-workouts" class="tab-panel">
+      <div id="workout-list"><div class="loading">Loading workouts...</div></div>
+    </div>
+
+    <!-- Tab 7: Heart -->
+    <div id="tab-heart" class="tab-panel">
+      <div class="card">
+        <div class="card-title">Current Readings</div>
+        <div id="heart-current"><div class="loading">Loading...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Resting HR — 14 Days</div>
+        <div class="chart-wrap"><canvas id="rhr-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">HRV — 14 Days</div>
+        <div class="chart-wrap"><canvas id="hrv-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab bar -->
+  <div id="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('today',this)">
+      <span class="tab-icon">🏠</span>Today
+    </button>
+    <button class="tab-btn" onclick="switchTab('insights',this)">
+      <span class="tab-icon">💡</span>Insights
+    </button>
+    <button class="tab-btn" onclick="switchTab('bz',this)">
+      <span class="tab-icon">🩸</span>Sugar
+    </button>
+    <button class="tab-btn" onclick="switchTab('food',this)">
+      <span class="tab-icon">🍽️</span>Food
+    </button>
+    <button class="tab-btn" onclick="switchTab('sleep',this)">
+      <span class="tab-icon">😴</span>Sleep
+    </button>
+    <button class="tab-btn" onclick="switchTab('workouts',this)">
+      <span class="tab-icon">🏃</span>Workout
+    </button>
+    <button class="tab-btn" onclick="switchTab('heart',this)">
+      <span class="tab-icon">💓</span>Heart
+    </button>
+  </div>
+</div>
+
+<!-- Meal popup tooltip -->
+<div id="meal-popup"></div>
+
+<script>
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+const state = {
+  bzRange: '1d',
+  foodRange: '1d',
+  currentBz: null,
+  currentTrend: 3,
+  charts: {},
+  loaded: { today: false, insights: false, bz: false, food: false, sleep: false, workouts: false, heart: false }
+};
+
+// ════════════════════════════════════════════════
+//  DB QUERY
+// ════════════════════════════════════════════════
+async function db(query) {
+  const res = await fetch('/api/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query })
+  });
+  const data = await res.json();
+  return data.rows || [];
+}
+
+// ════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════
+const bzColor = v => v >= 70 && v <= 140 ? 'var(--green)' : v <= 180 ? 'var(--orange)' : 'var(--red)';
+
+const trendArrow = t => ['', '↑↑', '↑', '→', '↓', '↓↓'][t] || '→';
+
+function fmtTime(ts) {
+  return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function fmtHours(h) {
+  if (h == null || isNaN(h)) return '--';
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return mins > 0 ? `${hrs}h${mins}m` : `${hrs}h`;
+}
+
+function setBzColor(el, val) {
+  el.style.color = bzColor(val);
+}
+
+function chartDefaults() {
+  return {
+    animation: { duration: 500 },
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: true } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8888aa', font: { size: 10 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8888aa', font: { size: 10 } } }
+    }
+  };
+}
+
+function destroyChart(id) {
+  if (state.charts[id]) { state.charts[id].destroy(); delete state.charts[id]; }
+}
+
+// ════════════════════════════════════════════════
+//  TAB NAVIGATION
+// ════════════════════════════════════════════════
+const tabLoaders = {
+  insights: loadInsights,
+  bz: loadBzTab,
+  food: loadFoodTab,
+  sleep: loadSleepTab,
+  workouts: loadWorkoutsTab,
+  heart: loadHeartTab
+};
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+
+  if (!state.loaded[name] && tabLoaders[name]) {
+    state.loaded[name] = true;
+    tabLoaders[name]();
+  }
+}
+
+// ════════════════════════════════════════════════
+//  REFRESH
+// ════════════════════════════════════════════════
+function refreshAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  state.loaded = { today: false, insights: false, bz: false, food: false, sleep: false, workouts: false, heart: false };
+  loadTodayTab().finally(() => btn.classList.remove('spinning'));
+
+  // Reload whatever active tab is showing
+  const active = document.querySelector('.tab-panel.active');
+  if (active && active.id !== 'tab-today') {
+    const name = active.id.replace('tab-', '');
+    if (tabLoaders[name]) { state.loaded[name] = true; tabLoaders[name](); }
+  }
+}
+
+// ════════════════════════════════════════════════
+//  TAB 1: TODAY
+// ════════════════════════════════════════════════
+async function loadTodayTab() {
+  state.loaded.today = true;
+
+  // Latest BZ
+  const bzRows = await db(`
+    SELECT value_mgdl, trend, timestamp
+    FROM blutzucker
+    WHERE timestamp > NOW() - INTERVAL '1 hour'
+    ORDER BY timestamp DESC LIMIT 1
+  `);
+
+  if (bzRows.length > 0) {
+    const { value_mgdl, trend, timestamp } = bzRows[0];
+    state.currentBz = value_mgdl;
+    state.currentTrend = trend;
+
+    // Header
+    const hdrVal = document.getElementById('hdr-bz-val');
+    hdrVal.textContent = value_mgdl;
+    setBzColor(hdrVal, value_mgdl);
+    document.getElementById('hdr-trend').textContent = trendArrow(trend);
+
+    // Hero
+    const heroBz = document.getElementById('hero-bz');
+    heroBz.textContent = value_mgdl;
+    setBzColor(heroBz, value_mgdl);
+    const heroTrend = document.getElementById('hero-trend');
+    heroTrend.textContent = trendArrow(trend);
+    heroTrend.style.color = bzColor(value_mgdl);
+  } else {
+    document.getElementById('hero-meta').textContent = 'No recent blood sugar data';
+  }
+
+  // Last meal for hero meta
+  const mealRows = await db(`
+    SELECT timestamp, mahlzeit FROM mahlzeiten
+    WHERE timestamp > NOW() - INTERVAL '24 hours'
+    ORDER BY timestamp DESC LIMIT 1
+  `);
+  if (mealRows.length > 0) {
+    const mealTime = new Date(mealRows[0].timestamp);
+    const mins = Math.round((Date.now() - mealTime) / 60000);
+    const since = mins < 60 ? `${mins}m ago` : `${Math.floor(mins/60)}h ${mins%60}m ago`;
+    document.getElementById('hero-meta').textContent = `${since} · ${mealRows[0].mahlzeit}`;
+  } else if (bzRows.length > 0) {
+    document.getElementById('hero-meta').textContent = fmtTime(bzRows[0].timestamp);
+  }
+
+  // Summary strip
+  await Promise.all([loadSummaryStrip(), loadTodayChart(), loadRecentMeals()]);
+}
+
+async function loadSummaryStrip() {
+  const [sleepRows, stepRows, hrRows, hrvRows] = await Promise.all([
+    db(`SELECT value FROM apple_health WHERE metric='sleep_total' AND timestamp > NOW() - INTERVAL '32 hours' ORDER BY timestamp DESC LIMIT 1`),
+    db(`SELECT SUM(value) as total FROM apple_health WHERE metric='step_count' AND timestamp >= CURRENT_DATE`),
+    db(`SELECT value FROM apple_health WHERE metric='resting_heart_rate' AND timestamp > NOW() - INTERVAL '32 hours' ORDER BY timestamp DESC LIMIT 1`),
+    db(`SELECT value FROM apple_health WHERE metric='heart_rate_variability' AND timestamp > NOW() - INTERVAL '32 hours' ORDER BY timestamp DESC LIMIT 1`)
+  ]);
+
+  document.getElementById('tile-sleep').textContent = sleepRows[0] ? fmtHours(parseFloat(sleepRows[0].value)) : '--';
+  document.getElementById('tile-steps').textContent = stepRows[0]?.total ? Math.round(stepRows[0].total).toLocaleString() : '--';
+  document.getElementById('tile-hr').textContent = hrRows[0] ? Math.round(hrRows[0].value) : '--';
+  document.getElementById('tile-hrv').textContent = hrvRows[0] ? Math.round(hrvRows[0].value) + 'ms' : '--';
+}
+
+async function loadTodayChart() {
+  const [bzRows, hrRows, mealRows] = await Promise.all([
+    db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp >= CURRENT_DATE ORDER BY timestamp ASC`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='heart_rate' AND timestamp >= CURRENT_DATE ORDER BY timestamp ASC`),
+    db(`SELECT timestamp, mahlzeit, kalorien FROM mahlzeiten WHERE timestamp >= CURRENT_DATE ORDER BY timestamp ASC`)
+  ]);
+
+  destroyChart('today');
+  const ctx = document.getElementById('today-chart').getContext('2d');
+
+  const bzLabels = bzRows.map(r => fmtTime(r.timestamp));
+  const bzData = bzRows.map(r => r.value_mgdl);
+
+  // Sample HR to reduce points
+  const hrSampled = hrRows.filter((_, i) => i % 3 === 0);
+
+  // Meal annotation dots
+  const mealPoints = mealRows.map(m => ({
+    x: fmtTime(m.timestamp),
+    y: 180,
+    meal: m.mahlzeit,
+    kcal: m.kalorien,
+    time: fmtTime(m.timestamp)
+  }));
+
+  // Target range plugin
+  const targetRangePlugin = {
+    id: 'targetRange',
+    beforeDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const yLow = scales.y.getPixelForValue(70);
+      const yHigh = scales.y.getPixelForValue(180);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,230,118,0.06)';
+      ctx.fillRect(chartArea.left, yHigh, chartArea.right - chartArea.left, yLow - yHigh);
+      ctx.restore();
+    }
+  };
+
+  state.charts.today = new Chart(ctx, {
+    type: 'line',
+    plugins: [targetRangePlugin],
+    data: {
+      labels: bzLabels,
+      datasets: [
+        {
+          label: 'BZ',
+          data: bzData,
+          borderColor: 'var(--green)',
+          backgroundColor: 'rgba(0,230,118,0.1)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: 'y'
+        },
+        {
+          label: 'HR',
+          data: hrSampled.map(r => ({ x: fmtTime(r.timestamp), y: r.value })),
+          borderColor: 'var(--pink)',
+          backgroundColor: 'rgba(244,143,177,0.08)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: 'y2'
+        },
+        {
+          label: 'Meal',
+          data: mealPoints,
+          type: 'scatter',
+          pointRadius: 7,
+          pointBackgroundColor: 'var(--orange)',
+          pointBorderColor: 'var(--bg)',
+          pointBorderWidth: 2,
+          yAxisID: 'y',
+          showLine: false
+        }
+      ]
+    },
+    options: {
+      ...chartDefaults(),
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#8888aa', font: { size: 9 }, maxTicksLimit: 6 }
+        },
+        y: {
+          position: 'left',
+          min: 50,
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          ticks: { color: 'var(--green)', font: { size: 9 }, maxTicksLimit: 5 }
+        },
+        y2: {
+          position: 'right',
+          min: 40,
+          max: 180,
+          grid: { display: false },
+          ticks: { color: 'var(--pink)', font: { size: 9 }, maxTicksLimit: 4 }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Meal') return `🍽 ${ctx.raw.meal} ${ctx.raw.kcal ? '('+ctx.raw.kcal+' kcal)' : ''}`;
+              return `${ctx.dataset.label}: ${Math.round(ctx.raw.y ?? ctx.raw)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+async function loadRecentMeals() {
+  const rows = await db(`
+    SELECT timestamp, mahlzeit, kalorien FROM mahlzeiten
+    WHERE timestamp > NOW() - INTERVAL '24 hours'
+    ORDER BY timestamp DESC LIMIT 3
+  `);
+  const el = document.getElementById('recent-meals');
+  if (!rows.length) { el.innerHTML = '<div class="empty-state">No meals logged today yet</div>'; return; }
+  el.innerHTML = rows.map(r => `
+    <div class="meal-row">
+      <div class="meal-time">${fmtTime(r.timestamp)}</div>
+      <div class="meal-name">${r.mahlzeit}</div>
+      <div class="meal-kcal">${r.kalorien ?? '--'} kcal</div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════
+//  TAB 2: INSIGHTS
+// ════════════════════════════════════════════════
+async function loadInsights() {
+  const el = document.getElementById('insights-container');
+  el.innerHTML = '<div class="loading">Crunching your data...</div>';
+
+  const cards = [];
+
+  // 1. TIR this week vs last week
+  try {
+    const [thisWeek, lastWeek] = await Promise.all([
+      db(`SELECT COUNT(*) FILTER (WHERE value_mgdl BETWEEN 70 AND 180) * 100.0 / COUNT(*) as tir FROM blutzucker WHERE timestamp > NOW() - INTERVAL '7 days'`),
+      db(`SELECT COUNT(*) FILTER (WHERE value_mgdl BETWEEN 70 AND 180) * 100.0 / COUNT(*) as tir FROM blutzucker WHERE timestamp BETWEEN NOW() - INTERVAL '14 days' AND NOW() - INTERVAL '7 days'`)
+    ]);
+    const t1 = parseFloat(thisWeek[0]?.tir || 0);
+    const t2 = parseFloat(lastWeek[0]?.tir || 0);
+    if (t1 > 0) {
+      const delta = t1 - t2;
+      cards.push({
+        emoji: '🎯',
+        title: 'Time in Range (TIR)',
+        value: `${t1.toFixed(0)}%`,
+        desc: t2 > 0 ? `${delta >= 0 ? '+' : ''}${delta.toFixed(0)}% vs last week (was ${t2.toFixed(0)}%)` : 'Past 7 days in target range 70-180 mg/dL'
+      });
+    } else {
+      cards.push({ emoji: '🎯', title: 'Time in Range', value: 'Needs data', desc: 'Come back after a few days of tracking' });
+    }
+  } catch {}
+
+  // 2. Best/worst foods by spike
+  try {
+    const spikeData = await db(`
+      WITH meal_spikes AS (
+        SELECT m.mahlzeit,
+          COALESCE((
+            SELECT MAX(b.value_mgdl) - MIN(b2.value_mgdl)
+            FROM blutzucker b, blutzucker b2
+            WHERE b.timestamp BETWEEN m.timestamp AND m.timestamp + INTERVAL '2 hours'
+            AND b2.timestamp BETWEEN m.timestamp - INTERVAL '15 minutes' AND m.timestamp + INTERVAL '15 minutes'
+          ), 0) as spike
+        FROM mahlzeiten m
+        WHERE m.timestamp > NOW() - INTERVAL '30 days'
+      )
+      SELECT mahlzeit, AVG(spike) as avg_spike, COUNT(*) as cnt
+      FROM meal_spikes GROUP BY mahlzeit HAVING COUNT(*) >= 1
+      ORDER BY avg_spike DESC LIMIT 3
+    `);
+    if (spikeData.length >= 2) {
+      const best = spikeData[spikeData.length - 1];
+      const worst = spikeData[0];
+      cards.push({
+        emoji: '🍽️',
+        title: 'Food Impact',
+        value: `${worst.mahlzeit.substring(0,20)}`,
+        desc: `Biggest spiker: +${Math.round(worst.avg_spike)} mg/dL · Best: ${best.mahlzeit.substring(0,15)} (+${Math.round(best.avg_spike)} mg/dL)`
+      });
+    } else {
+      cards.push({ emoji: '🍽️', title: 'Food Spikes', value: 'Needs more data', desc: 'Log meals for 3+ days to see patterns' });
+    }
+  } catch {}
+
+  // 3. Sleep → morning BZ correlation
+  try {
+    const [sleepBz] = await Promise.all([
+      db(`
+        SELECT s.value as sleep_hrs, b.avg_bz
+        FROM apple_health s
+        CROSS JOIN LATERAL (
+          SELECT AVG(value_mgdl) as avg_bz FROM blutzucker
+          WHERE timestamp::date = s.timestamp::date AND EXTRACT(hour FROM timestamp) BETWEEN 6 AND 10
+        ) b
+        WHERE s.metric = 'sleep_total' AND s.timestamp > NOW() - INTERVAL '14 days'
+        AND b.avg_bz IS NOT NULL
+        LIMIT 14
+      `)
+    ]);
+    if (sleepBz.length >= 4) {
+      const goodSleep = sleepBz.filter(r => parseFloat(r.sleep_hrs) >= 7);
+      const badSleep = sleepBz.filter(r => parseFloat(r.sleep_hrs) < 6);
+      if (goodSleep.length > 0 && badSleep.length > 0) {
+        const avgGood = goodSleep.reduce((s, r) => s + parseFloat(r.avg_bz), 0) / goodSleep.length;
+        const avgBad = badSleep.reduce((s, r) => s + parseFloat(r.avg_bz), 0) / badSleep.length;
+        const delta = avgBad - avgGood;
+        cards.push({
+          emoji: '😴',
+          title: 'Sleep → Morning BZ',
+          value: `${delta > 0 ? '+' : ''}${delta.toFixed(0)} mg/dL`,
+          desc: `Poor sleep (<6h) → morning BZ ${delta > 0 ? 'higher' : 'lower'} by ${Math.abs(delta).toFixed(0)} mg/dL`
+        });
+      } else {
+        cards.push({ emoji: '😴', title: 'Sleep → Morning BZ', value: 'Analyzing...', desc: 'Need more varied sleep nights to find patterns' });
+      }
+    } else {
+      cards.push({ emoji: '😴', title: 'Sleep → Morning BZ', value: 'Needs data', desc: 'Come back after 4+ nights of tracking' });
+    }
+  } catch {}
+
+  // 4. Workout effect on BZ
+  try {
+    const workoutBz = await db(`
+      SELECT w.timestamp as workout_time,
+        (SELECT AVG(value_mgdl) FROM blutzucker WHERE timestamp BETWEEN w.timestamp - INTERVAL '30 minutes' AND w.timestamp) as bz_before,
+        (SELECT AVG(value_mgdl) FROM blutzucker WHERE timestamp BETWEEN w.timestamp + w.value * INTERVAL '1 minute' AND w.timestamp + w.value * INTERVAL '1 minute' + INTERVAL '60 minutes') as bz_after
+      FROM apple_health w
+      WHERE w.metric = 'WorkoutDuration' AND w.timestamp > NOW() - INTERVAL '30 days'
+      LIMIT 10
+    `);
+    const valid = workoutBz.filter(r => r.bz_before && r.bz_after);
+    if (valid.length >= 2) {
+      const avgEffect = valid.reduce((s, r) => s + (parseFloat(r.bz_after) - parseFloat(r.bz_before)), 0) / valid.length;
+      cards.push({
+        emoji: '🏃',
+        title: 'Workout Effect on BZ',
+        value: `${avgEffect > 0 ? '+' : ''}${avgEffect.toFixed(0)} mg/dL`,
+        desc: `Average BZ change after ${valid.length} workouts. ${avgEffect < 0 ? 'Workouts lower your BZ 💪' : 'BZ rises slightly post-workout'}`
+      });
+    } else {
+      cards.push({ emoji: '🏃', title: 'Workout Effect', value: 'Needs data', desc: 'Log 2+ workouts with BZ data to see patterns' });
+    }
+  } catch {}
+
+  // 5. HRV trend
+  try {
+    const hrvRows = await db(`
+      SELECT DATE_TRUNC('week', timestamp) as week, AVG(value) as avg_hrv
+      FROM apple_health WHERE metric='heart_rate_variability' AND timestamp > NOW() - INTERVAL '14 days'
+      GROUP BY 1 ORDER BY 1
+    `);
+    if (hrvRows.length >= 2) {
+      const last = parseFloat(hrvRows[hrvRows.length - 1].avg_hrv);
+      const prev = parseFloat(hrvRows[hrvRows.length - 2].avg_hrv);
+      const delta = last - prev;
+      cards.push({
+        emoji: '💫',
+        title: 'HRV Trend',
+        value: `${last.toFixed(0)}ms`,
+        desc: `${delta >= 0 ? '📈 Up' : '📉 Down'} ${Math.abs(delta).toFixed(0)}ms vs last week · ${last >= 50 ? 'Good recovery' : 'Recovery needed'}`
+      });
+    } else if (hrvRows.length === 1) {
+      cards.push({ emoji: '💫', title: 'HRV', value: `${parseFloat(hrvRows[0].avg_hrv).toFixed(0)}ms`, desc: 'Need 2+ weeks for trend analysis' });
+    } else {
+      cards.push({ emoji: '💫', title: 'HRV Trend', value: 'Needs data', desc: 'HRV data needed from Apple Health' });
+    }
+  } catch {}
+
+  if (cards.length === 0) {
+    el.innerHTML = '<div class="empty-state">No insights yet.<br>Start logging data and come back in a few days! 🌱</div>';
+    return;
+  }
+
+  el.innerHTML = cards.map(c => `
+    <div class="insight-card">
+      <div class="insight-emoji">${c.emoji}</div>
+      <div class="insight-body">
+        <div class="insight-title">${c.title}</div>
+        <div class="insight-value">${c.value}</div>
+        <div class="insight-desc">${c.desc}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════
+//  TAB 3: BLOOD SUGAR
+// ════════════════════════════════════════════════
+let bzRangeState = '1d';
+
+function setBzRange(range, btn) {
+  bzRangeState = range;
+  document.querySelectorAll('#tab-bz .range-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadBzTab();
+}
+
+async function loadBzTab() {
+  const interval = bzRangeState === '1d' ? '1 day' : bzRangeState === '7d' ? '7 days' : '30 days';
+
+  const [bzRows, mealRows, tirRows, todRows] = await Promise.all([
+    db(`SELECT timestamp, value_mgdl FROM blutzucker WHERE timestamp > NOW() - INTERVAL '${interval}' ORDER BY timestamp ASC`),
+    db(`SELECT timestamp, mahlzeit FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '${interval}' ORDER BY timestamp ASC`),
+    db(`
+      SELECT
+        COUNT(*) FILTER (WHERE value_mgdl BETWEEN 70 AND 180) * 100.0 / NULLIF(COUNT(*),0) as tir,
+        AVG(value_mgdl) as avg,
+        MIN(value_mgdl) as min,
+        MAX(value_mgdl) as max
+      FROM blutzucker WHERE timestamp > NOW() - INTERVAL '${interval}'
+    `),
+    db(`
+      SELECT
+        AVG(CASE WHEN EXTRACT(hour FROM timestamp) BETWEEN 6 AND 11 THEN value_mgdl END) as morning,
+        AVG(CASE WHEN EXTRACT(hour FROM timestamp) BETWEEN 12 AND 17 THEN value_mgdl END) as afternoon,
+        AVG(CASE WHEN EXTRACT(hour FROM timestamp) BETWEEN 18 AND 23 THEN value_mgdl END) as evening,
+        AVG(CASE WHEN EXTRACT(hour FROM timestamp) BETWEEN 0 AND 5 THEN value_mgdl END) as night
+      FROM blutzucker WHERE timestamp > NOW() - INTERVAL '${interval}'
+    `)
+  ]);
+
+  // Stats
+  if (tirRows[0]) {
+    const s = tirRows[0];
+    document.getElementById('bz-avg').textContent = s.avg ? Math.round(s.avg) : '--';
+    document.getElementById('bz-min').textContent = s.min || '--';
+    document.getElementById('bz-max').textContent = s.max || '--';
+    document.getElementById('bz-tir').textContent = s.tir ? Math.round(s.tir) + '%' : '--%';
+  }
+
+  // Time of day
+  if (todRows[0]) {
+    const t = todRows[0];
+    const fmt = v => v ? Math.round(v) : '--';
+    document.getElementById('tod-morning').textContent = fmt(t.morning);
+    document.getElementById('tod-afternoon').textContent = fmt(t.afternoon);
+    document.getElementById('tod-evening').textContent = fmt(t.evening);
+    document.getElementById('tod-night').textContent = fmt(t.night);
+  }
+
+  // Chart
+  destroyChart('bz');
+  const ctx = document.getElementById('bz-chart').getContext('2d');
+
+  const labelFn = ts => bzRangeState === '1d' ? fmtTime(ts) : fmtDate(ts);
+  const labels = bzRows.map(r => labelFn(r.timestamp));
+
+  const targetRangePlugin = {
+    id: 'targetRange',
+    beforeDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const yLow = scales.y.getPixelForValue(70);
+      const yHigh = scales.y.getPixelForValue(180);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,230,118,0.06)';
+      ctx.fillRect(chartArea.left, yHigh, chartArea.right - chartArea.left, yLow - yHigh);
+      ctx.restore();
+    }
+  };
+
+  state.charts.bz = new Chart(ctx, {
+    type: 'line',
+    plugins: [targetRangePlugin],
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'BZ',
+          data: bzRows.map(r => r.value_mgdl),
+          borderColor: ctx => {
+            const v = ctx.raw;
+            return v >= 70 && v <= 180 ? 'var(--green)' : 'var(--red)';
+          },
+          segment: {
+            borderColor: ctx => {
+              const v = ctx.p0.parsed.y;
+              return v >= 70 && v <= 180 ? '#00e676' : '#ff5252';
+            }
+          },
+          backgroundColor: 'rgba(0,230,118,0.08)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'Meal',
+          type: 'scatter',
+          data: mealRows.map(m => ({ x: labelFn(m.timestamp), y: 185, meal: m.mahlzeit })),
+          pointRadius: 6,
+          pointBackgroundColor: 'var(--orange)',
+          pointBorderColor: 'var(--bg)',
+          pointBorderWidth: 2
+        }
+      ]
+    },
+    options: {
+      ...chartDefaults(),
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8888aa', font: { size: 9 }, maxTicksLimit: 7 } },
+        y: { min: 50, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8888aa', font: { size: 9 } } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ctx.dataset.label === 'Meal' ? `🍽 ${ctx.raw.meal}` : `BZ: ${ctx.raw} mg/dL` }
+        }
+      }
+    }
+  });
+
+  // 7-day TIR bar
+  await loadTirBar();
+}
+
+async function loadTirBar() {
+  const rows = await db(`
+    SELECT
+      DATE_TRUNC('day', timestamp) as day,
+      COUNT(*) FILTER (WHERE value_mgdl < 70) * 100.0 / NULLIF(COUNT(*),0) as low_pct,
+      COUNT(*) FILTER (WHERE value_mgdl BETWEEN 70 AND 180) * 100.0 / NULLIF(COUNT(*),0) as in_pct,
+      COUNT(*) FILTER (WHERE value_mgdl > 180) * 100.0 / NULLIF(COUNT(*),0) as high_pct
+    FROM blutzucker WHERE timestamp > NOW() - INTERVAL '7 days'
+    GROUP BY 1 ORDER BY 1
+  `);
+
+  const el = document.getElementById('tir-bar-container');
+  if (!rows.length) { el.innerHTML = '<div class="empty-state">No data yet</div>'; return; }
+
+  el.innerHTML = rows.map(r => {
+    const day = new Date(r.day).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' });
+    const inP = parseFloat(r.in_pct || 0).toFixed(0);
+    const lowP = parseFloat(r.low_pct || 0).toFixed(0);
+    const highP = parseFloat(r.high_pct || 0).toFixed(0);
+    return `
+      <div class="tir-bar-row">
+        <div class="tir-bar-label">${day}</div>
+        <div class="tir-bar-bg">
+          <div style="display:flex;height:100%">
+            <div style="width:${lowP}%;background:var(--red);border-radius:9px 0 0 9px"></div>
+            <div style="width:${inP}%;background:var(--green)"></div>
+            <div style="width:${highP}%;background:var(--orange);border-radius:0 9px 9px 0"></div>
+          </div>
+        </div>
+        <div class="tir-bar-pct" style="color:var(--green)">${inP}%</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+//  TAB 4: FOOD
+// ════════════════════════════════════════════════
+let foodRangeState = '1d';
+
+function setFoodRange(range, btn) {
+  foodRangeState = range;
+  document.querySelectorAll('#tab-food .range-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadFoodTab();
+}
+
+async function loadFoodTab() {
+  const interval = foodRangeState === '1d' ? '1 day' : foodRangeState === '3d' ? '3 days' : '7 days';
+
+  const [mealRows, spikeRows] = await Promise.all([
+    db(`
+      SELECT timestamp, mahlzeit, kalorien, kohlenhydrate_g, protein_g, fett_g, zucker_g
+      FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '${interval}'
+      ORDER BY timestamp DESC
+    `),
+    db(`
+      WITH meal_spikes AS (
+        SELECT m.mahlzeit, m.timestamp,
+          (SELECT MAX(b.value_mgdl) FROM blutzucker b WHERE b.timestamp BETWEEN m.timestamp AND m.timestamp + INTERVAL '2 hours') as bz_peak,
+          (SELECT AVG(b.value_mgdl) FROM blutzucker b WHERE b.timestamp BETWEEN m.timestamp - INTERVAL '15 minutes' AND m.timestamp + INTERVAL '15 minutes') as bz_base
+        FROM mahlzeiten m
+        WHERE m.timestamp > NOW() - INTERVAL '${interval}'
+      )
+      SELECT mahlzeit, ROUND((bz_peak - bz_base)::numeric, 0) as spike_delta
+      FROM meal_spikes WHERE bz_peak IS NOT NULL AND bz_base IS NOT NULL
+      ORDER BY spike_delta DESC LIMIT 10
+    `)
+  ]);
+
+  // Group meals by day
+  const el = document.getElementById('food-log');
+  if (!mealRows.length) { el.innerHTML = '<div class="empty-state">No meals logged in this period</div>'; }
+  else {
+    const grouped = {};
+    mealRows.forEach(r => {
+      const day = fmtDate(r.timestamp);
+      if (!grouped[day]) grouped[day] = [];
+      grouped[day].push(r);
+    });
+
+    el.innerHTML = Object.entries(grouped).map(([day, meals]) => `
+      <div class="meal-day-header">${day}</div>
+      ${meals.map(m => `
+        <div class="meal-row">
+          <div class="meal-time">${fmtTime(m.timestamp)}</div>
+          <div class="meal-name">
+            <div>${m.mahlzeit}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">
+              ${m.kohlenhydrate_g ? `🌾 ${m.kohlenhydrate_g}g Carbs` : ''}
+              ${m.protein_g ? `  🥩 ${m.protein_g}g Prot` : ''}
+              ${m.fett_g ? `  🫒 ${m.fett_g}g Fat` : ''}
+            </div>
+          </div>
+          <div class="meal-kcal">${m.kalorien ?? '--'} kcal</div>
+        </div>
+      `).join('')}
+    `).join('');
+  }
+
+  // Daily totals
+  const totalsEl = document.getElementById('food-totals');
+  const totalsContent = document.getElementById('food-totals-content');
+  if (mealRows.length) {
+    const totals = mealRows.reduce((acc, r) => ({
+      kcal: acc.kcal + (r.kalorien || 0),
+      carbs: acc.carbs + parseFloat(r.kohlenhydrate_g || 0),
+      protein: acc.protein + parseFloat(r.protein_g || 0),
+      fat: acc.fat + parseFloat(r.fett_g || 0),
+      sugar: acc.sugar + parseFloat(r.zucker_g || 0)
+    }), { kcal: 0, carbs: 0, protein: 0, fat: 0, sugar: 0 });
+
+    totalsEl.style.display = 'block';
+    totalsContent.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div class="stat-box"><div class="stat-value" style="color:var(--orange)">${Math.round(totals.kcal)}</div><div class="stat-label">kcal</div></div>
+        <div class="stat-box"><div class="stat-value" style="color:var(--blue)">${Math.round(totals.carbs)}g</div><div class="stat-label">Carbs</div></div>
+        <div class="stat-box"><div class="stat-value" style="color:var(--green)">${Math.round(totals.protein)}g</div><div class="stat-label">Protein</div></div>
+        <div class="stat-box"><div class="stat-value" style="color:var(--yellow)">${Math.round(totals.fat)}g</div><div class="stat-label">Fat</div></div>
+        <div class="stat-box"><div class="stat-value" style="color:var(--pink)">${Math.round(totals.sugar)}g</div><div class="stat-label">Sugar</div></div>
+      </div>
+    `;
+  }
+
+  // Spike ranking
+  const spikeEl = document.getElementById('spike-ranking');
+  if (!spikeRows.length) {
+    spikeEl.innerHTML = '<div class="empty-state">Need BZ data around meals to calculate spikes</div>';
+  } else {
+    const maxSpike = Math.max(...spikeRows.map(r => parseFloat(r.spike_delta || 0)));
+    spikeEl.innerHTML = spikeRows.map(r => {
+      const delta = parseFloat(r.spike_delta || 0);
+      const pct = maxSpike > 0 ? (delta / maxSpike) * 100 : 0;
+      const color = delta > 40 ? 'var(--red)' : delta > 20 ? 'var(--orange)' : 'var(--green)';
+      return `
+        <div class="spike-row">
+          <div class="spike-name">${r.mahlzeit}</div>
+          <div class="spike-bar-wrap"><div class="spike-bar" style="width:${pct}%;background:${color}"></div></div>
+          <div class="spike-delta" style="color:${color}">+${delta} mg/dL</div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+// ════════════════════════════════════════════════
+//  TAB 5: SLEEP
+// ════════════════════════════════════════════════
+async function loadSleepTab() {
+  const [lastNight, history] = await Promise.all([
+    db(`
+      SELECT metric, value FROM apple_health
+      WHERE metric IN ('sleep_total','sleep_deep','sleep_rem','sleep_core','sleep_awake')
+      AND timestamp > NOW() - INTERVAL '32 hours'
+      ORDER BY timestamp DESC LIMIT 10
+    `),
+    db(`
+      SELECT DATE_TRUNC('day', timestamp) as day, metric, AVG(value) as val
+      FROM apple_health
+      WHERE metric IN ('sleep_total','sleep_deep','sleep_rem','sleep_core','sleep_awake')
+      AND timestamp > NOW() - INTERVAL '14 days'
+      GROUP BY 1, 2 ORDER BY 1
+    `)
+  ]);
+
+  // Last night
+  const lnEl = document.getElementById('sleep-lastnight');
+  const lnMap = {};
+  lastNight.forEach(r => { if (!lnMap[r.metric]) lnMap[r.metric] = parseFloat(r.value); });
+
+  if (Object.keys(lnMap).length === 0) {
+    lnEl.innerHTML = '<div class="empty-state">No sleep data for last night yet</div>';
+  } else {
+    const phases = [
+      { key: 'sleep_total', label: 'Total', color: 'var(--blue)' },
+      { key: 'sleep_deep', label: 'Deep', color: '#1a237e' },
+      { key: 'sleep_rem', label: 'REM', color: 'var(--purple)' },
+      { key: 'sleep_core', label: 'Core', color: 'var(--blue)' },
+      { key: 'sleep_awake', label: 'Awake', color: 'var(--muted)' }
+    ];
+    lnEl.innerHTML = phases.filter(p => lnMap[p.key] != null).map(p => `
+      <div class="sleep-phase-row">
+        <div class="sleep-phase-name">
+          <div class="sleep-phase-dot" style="background:${p.color}"></div>
+          ${p.label}
+        </div>
+        <div class="sleep-phase-val">${fmtHours(lnMap[p.key])}</div>
+      </div>
+    `).join('');
+  }
+
+  // 14-day chart
+  const days = [...new Set(history.map(r => r.day))].sort();
+  const getMetric = (day, metric) => {
+    const row = history.find(r => r.day === day && r.metric === metric);
+    return row ? parseFloat(row.val) : 0;
+  };
+
+  destroyChart('sleep');
+  const ctx = document.getElementById('sleep-chart').getContext('2d');
+  state.charts.sleep = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: days.map(d => new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' })),
+      datasets: [
+        { label: 'Deep', data: days.map(d => getMetric(d, 'sleep_deep')), backgroundColor: '#1a237e', stack: 'sleep' },
+        { label: 'REM', data: days.map(d => getMetric(d, 'sleep_rem')), backgroundColor: '#7c4dff', stack: 'sleep' },
+        { label: 'Core', data: days.map(d => getMetric(d, 'sleep_core')), backgroundColor: '#448aff', stack: 'sleep' },
+        { label: 'Awake', data: days.map(d => getMetric(d, 'sleep_awake')), backgroundColor: '#8888aa', stack: 'sleep' }
+      ]
+    },
+    options: {
+      ...chartDefaults(),
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#8888aa', font: { size: 9 }, maxTicksLimit: 7 } },
+        y: { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8888aa', font: { size: 9 }, callback: v => v + 'h' } }
+      },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtHours(ctx.raw)}` } } }
+    }
+  });
+
+  // Avg trend
+  const avgEl = document.getElementById('sleep-avg-trend');
+  if (days.length === 0) {
+    avgEl.innerHTML = '<div class="empty-state">No sleep data available</div>';
+  } else {
+    const totals = days.map(d => getMetric(d, 'sleep_total')).filter(v => v > 0);
+    const avg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+    const last7 = totals.slice(-7);
+    const avg7 = last7.length ? last7.reduce((a, b) => a + b, 0) / last7.length : 0;
+    avgEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="stat-box" style="background:var(--card)">
+          <div class="stat-value" style="color:var(--blue)">${fmtHours(avg)}</div>
+          <div class="stat-label">14-Day Avg</div>
+        </div>
+        <div class="stat-box" style="background:var(--card)">
+          <div class="stat-value" style="color:var(--purple)">${fmtHours(avg7)}</div>
+          <div class="stat-label">7-Day Avg</div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// ════════════════════════════════════════════════
+//  TAB 6: WORKOUTS
+// ════════════════════════════════════════════════
+async function loadWorkoutsTab() {
+  const [workouts, distances, speeds, cals] = await Promise.all([
+    db(`SELECT timestamp, value, unit FROM apple_health WHERE metric='WorkoutDuration' AND timestamp > NOW() - INTERVAL '30 days' ORDER BY timestamp DESC LIMIT 20`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='WorkoutDistance' AND timestamp > NOW() - INTERVAL '30 days' ORDER BY timestamp DESC LIMIT 20`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='WorkoutSpeed' AND timestamp > NOW() - INTERVAL '30 days' ORDER BY timestamp DESC LIMIT 20`),
+    db(`SELECT timestamp, value FROM apple_health WHERE metric='WorkoutActiveCalories' AND timestamp > NOW() - INTERVAL '30 days' ORDER BY timestamp DESC LIMIT 20`)
+  ]);
+
+  const el = document.getElementById('workout-list');
+  if (!workouts.length) {
+    el.innerHTML = '<div class="empty-state">No workouts in the last 30 days</div>';
+    return;
+  }
+
+  // Match by closest timestamp
+  const closest = (arr, ts) => {
+    const t = new Date(ts).getTime();
+    const match = arr.reduce((best, r) => {
+      const diff = Math.abs(new Date(r.timestamp).getTime() - t);
+      return diff < best.diff ? { r, diff } : best;
+    }, { r: null, diff: Infinity });
+    return match.r;
+  };
+
+  // BZ before/after
+  const bzData = await db(`
+    SELECT timestamp, value_mgdl FROM blutzucker
+    WHERE timestamp > NOW() - INTERVAL '30 days'
+    ORDER BY timestamp ASC
+  `);
+
+  const bzAt = (ts, offsetMinsBefore, offsetMinsAfter) => {
+    const t = new Date(ts).getTime();
+    const before = bzData.filter(r => {
+      const diff = (t - new Date(r.timestamp).getTime()) / 60000;
+      return diff >= 0 && diff <= 30;
+    });
+    const after = bzData.filter(r => {
+      const diff = (new Date(r.timestamp).getTime() - t) / 60000;
+      return diff >= offsetMinsAfter && diff <= offsetMinsAfter + 60;
+    });
+    return {
+      before: before.length ? Math.round(before.reduce((s, r) => s + r.value_mgdl, 0) / before.length) : null,
+      after: after.length ? Math.round(after.reduce((s, r) => s + r.value_mgdl, 0) / after.length) : null
+    };
+  };
+
+  el.innerHTML = workouts.map(w => {
+    const dist = closest(distances, w.timestamp);
+    const spd = closest(speeds, w.timestamp);
+    const cal = closest(cals, w.timestamp);
+    const { before, after } = bzAt(w.timestamp, 30, parseFloat(w.value));
+    const durMins = Math.round(parseFloat(w.value));
+
+    return `
+      <div class="workout-row">
+        <div class="workout-header">
+          <div class="workout-name">🏃 ${w.unit || 'Workout'}</div>
+          <div class="workout-date">${fmtDate(w.timestamp)}</div>
+        </div>
+        <div class="workout-stats">
+          <div class="workout-stat">⏱ <span>${durMins}min</span></div>
+          ${dist ? `<div class="workout-stat">📍 <span>${parseFloat(dist.value).toFixed(2)}km</span></div>` : ''}
+          ${spd ? `<div class="workout-stat">⚡ <span>${parseFloat(spd.value).toFixed(1)}km/h</span></div>` : ''}
+          ${cal ? `<div class="workout-stat">🔥 <span>${Math.round(cal.value)} kcal</span></div>` : ''}
+        </div>
+        ${(before || after) ? `
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:16px">
+            ${before ? `<div class="workout-stat">BZ before: <span style="color:${bzColor(before)}">${before} mg/dL</span></div>` : ''}
+            ${after ? `<div class="workout-stat">BZ after: <span style="color:${bzColor(after)}">${after} mg/dL</span></div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+//  TAB 7: HEART
+// ════════════════════════════════════════════════
+async function loadHeartTab() {
+  const [current, rhrHistory, hrvHistory] = await Promise.all([
+    db(`
+      SELECT metric, value FROM apple_health
+      WHERE metric IN ('resting_heart_rate','heart_rate_variability','blood_oxygen_saturation','respiratory_rate')
+      AND timestamp > NOW() - INTERVAL '48 hours'
+      ORDER BY timestamp DESC LIMIT 20
+    `),
+    db(`
+      SELECT DATE_TRUNC('day', timestamp) as day, AVG(value) as val
+      FROM apple_health WHERE metric='resting_heart_rate'
+      AND timestamp > NOW() - INTERVAL '14 days'
+      GROUP BY 1 ORDER BY 1
+    `),
+    db(`
+      SELECT DATE_TRUNC('day', timestamp) as day, AVG(value) as val
+      FROM apple_health WHERE metric='heart_rate_variability'
+      AND timestamp > NOW() - INTERVAL '14 days'
+      GROUP BY 1 ORDER BY 1
+    `)
+  ]);
+
+  // Current readings
+  const metricMap = {};
+  current.forEach(r => { if (!metricMap[r.metric]) metricMap[r.metric] = parseFloat(r.value); });
+
+  const heartEl = document.getElementById('heart-current');
+  const metrics = [
+    { key: 'resting_heart_rate', label: 'Resting HR', unit: 'bpm', color: v => v < 60 ? 'var(--green)' : v < 80 ? 'var(--blue)' : 'var(--orange)' },
+    { key: 'heart_rate_variability', label: 'HRV', unit: 'ms', color: v => v >= 50 ? 'var(--green)' : v >= 30 ? 'var(--orange)' : 'var(--red)' },
+    { key: 'blood_oxygen_saturation', label: 'SpO₂', unit: '%', color: v => v >= 97 ? 'var(--green)' : v >= 95 ? 'var(--orange)' : 'var(--red)' },
+    { key: 'respiratory_rate', label: 'Respiratory Rate', unit: '/min', color: v => v >= 12 && v <= 20 ? 'var(--green)' : 'var(--orange)' }
+  ];
+
+  if (!Object.keys(metricMap).length) {
+    heartEl.innerHTML = '<div class="empty-state">No heart data in last 48 hours</div>';
+  } else {
+    heartEl.innerHTML = metrics.filter(m => metricMap[m.key] != null).map(m => {
+      const val = metricMap[m.key];
+      return `
+        <div class="heart-metric-row">
+          <div class="heart-metric-label">${m.label}</div>
+          <div class="heart-metric-value" style="color:${m.color(val)}">${Math.round(val)} <span style="font-size:13px;color:var(--muted)">${m.unit}</span></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // RHR chart
+  destroyChart('rhr');
+  const rhrCtx = document.getElementById('rhr-chart').getContext('2d');
+  state.charts.rhr = new Chart(rhrCtx, {
+    type: 'line',
+    data: {
+      labels: rhrHistory.map(r => new Date(r.day).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' })),
+      datasets: [{
+        data: rhrHistory.map(r => parseFloat(r.val)),
+        borderColor: 'var(--pink)',
+        backgroundColor: 'rgba(244,143,177,0.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: 'var(--pink)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      ...chartDefaults(),
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8888aa', font: { size: 9 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8888aa', font: { size: 9 }, callback: v => v + ' bpm' } }
+      }
+    }
+  });
+
+  // HRV chart
+  destroyChart('hrv');
+  const hrvCtx = document.getElementById('hrv-chart').getContext('2d');
+  state.charts.hrv = new Chart(hrvCtx, {
+    type: 'line',
+    data: {
+      labels: hrvHistory.map(r => new Date(r.day).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric' })),
+      datasets: [{
+        data: hrvHistory.map(r => parseFloat(r.val)),
+        borderColor: 'var(--purple)',
+        backgroundColor: 'rgba(124,77,255,0.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: 'var(--purple)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      ...chartDefaults(),
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8888aa', font: { size: 9 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8888aa', font: { size: 9 }, callback: v => v + ' ms' } }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadTodayTab();
+});
+
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
