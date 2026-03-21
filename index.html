@@ -1061,10 +1061,15 @@ async function loadTodayChart(hours) {
 
 async function loadRecentMeals(hours) {
   hours = hours || 24;
+  const el = document.getElementById('recent-meals');
+  if (!el) return;
+  let mealRows = [], workoutRows = [];
+  try {
   const [mealRows, workoutRows] = await Promise.all([
     db(`SELECT to_char(timestamp AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD"T"HH24:MI:SS+01:00') as t, mahlzeit, kalorien, kohlenhydrate_g FROM mahlzeiten WHERE timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp DESC LIMIT 10`),
     db(`SELECT to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS+00:00') as t, metric, value, unit FROM apple_health WHERE metric IN ('WorkoutDuration','WorkoutDistance','WorkoutSpeed') AND timestamp > NOW() - INTERVAL '${hours} hours' ORDER BY timestamp DESC LIMIT 15`)
   ]);
+  } catch(dbErr) { console.error('DB error:', dbErr); }
 
   // Group workouts by timestamp (within 1 min)
   const workouts = {};
@@ -1091,7 +1096,6 @@ async function loadRecentMeals(hours) {
   }
   events.sort((a, b) => new Date(b.t) - new Date(a.t));
 
-  const el = document.getElementById('recent-meals');
   if (!events.length) { el.innerHTML = '<div class="empty-state">No events in this window</div>'; return; }
 
   el.innerHTML = events.map(e => {
