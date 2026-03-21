@@ -480,7 +480,7 @@ html, body {
         <div class="summary-tile">
           <div class="tile-icon">👣</div>
           <div class="tile-value" id="tile-steps">--</div>
-          <div class="tile-label">Distance</div>
+          <div class="tile-label">Steps</div>
         </div>
         <div class="summary-tile">
           <div class="tile-icon">❤️</div>
@@ -810,13 +810,13 @@ async function loadTodayTab() {
 async function loadSummaryStrip() {
   const [sleepRows, stepRows, hrRows, hrvRows] = await Promise.all([
     db(`SELECT value FROM apple_health WHERE metric='sleep_total' AND timestamp > NOW() - INTERVAL '32 hours' ORDER BY timestamp DESC LIMIT 1`),
-    db(`SELECT ROUND(SUM(value)::numeric, 1) as total FROM apple_health WHERE metric='walking_running_distance' AND timestamp >= CURRENT_DATE`),
+    db(`SELECT ROUND(SUM(mx)::numeric, 0) as total FROM (SELECT date_trunc('minute', timestamp) as min, MAX(value) as mx FROM apple_health WHERE metric='step_count' AND timestamp >= CURRENT_DATE GROUP BY 1) t`),
     db(`SELECT value FROM apple_health WHERE metric='resting_heart_rate' AND timestamp > NOW() - INTERVAL '32 hours' ORDER BY timestamp DESC LIMIT 1`),
     db(`SELECT value FROM apple_health WHERE metric='heart_rate_variability' AND timestamp > NOW() - INTERVAL '32 hours' ORDER BY timestamp DESC LIMIT 1`)
   ]);
 
   document.getElementById('tile-sleep').textContent = sleepRows[0] ? fmtHours(parseFloat(sleepRows[0].value)) : '--';
-  document.getElementById('tile-steps').textContent = stepRows[0]?.total ? stepRows[0].total + ' km' : '--';
+  document.getElementById('tile-steps').textContent = stepRows[0]?.total ? Number(stepRows[0].total).toLocaleString() : '--';
   document.getElementById('tile-hr').textContent = hrRows[0] ? Math.round(hrRows[0].value) : '--';
   document.getElementById('tile-hrv').textContent = hrvRows[0] ? Math.round(hrvRows[0].value) + 'ms' : '--';
 }
