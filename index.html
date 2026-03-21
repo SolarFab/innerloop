@@ -850,9 +850,9 @@ async function loadTodayChart(hours) {
   const ctx = document.getElementById('today-chart').getContext('2d');
 
   // blutzucker timestamps are Berlin local time stored as UTC - parse without tz offset
-  const bzData = bzRows.map(r => ({ x: new Date(r.timestamp.replace(/[+-]\d{2}:\d{2}$/, '').replace('+00','')), y: Number(r.value_mgdl) }));
+  const bzData = bzRows.map(r => ({ x: new Date(r.t || r.timestamp), y: Number(r.value_mgdl) }));
   const hrData = hrRows.filter((_,i) => i%3===0).map(r => ({ x: new Date(r.t), y: Number(r.value) }));
-  const yMin = bzData.length ? Math.max(50, Math.min(...bzData.map(d=>d.y)) - 10) : 50;
+  const yMin = 50;
 
   // Meal scatter data
   const mealScatter = mealRows.map(m => ({ x: new Date(m.t), y: yMin + 3, meal: m }));
