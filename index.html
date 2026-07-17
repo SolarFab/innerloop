@@ -655,23 +655,14 @@ const state = {
 //  DB QUERY
 // ════════════════════════════════════════════════
 async function db(query) {
-  let token = localStorage.getItem('app_token');
-  if (!token) {
-    token = prompt('App token:');
-    if (token) localStorage.setItem('app_token', token.trim());
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    const data = await res.json();
+    return data.rows || [];
   }
-  const res = await fetch('/api/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-App-Token': (token || '').trim() },
-    body: JSON.stringify({ query })
-  });
-  if (res.status === 401) {
-    localStorage.removeItem('app_token');
-    throw new Error('unauthorized — refresh and re-enter the app token');
-  }
-  const data = await res.json();
-  return data.rows || [];
-}
 
 // ════════════════════════════════════════════════
 //  HELPERS
