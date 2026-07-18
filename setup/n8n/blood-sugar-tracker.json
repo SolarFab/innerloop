@@ -1,0 +1,308 @@
+{
+  "name": "Innerloop — blood sugar tracker (LibreLinkUp → Postgres)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Every 5 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "email",
+              "value": "YOUR_LIBRELINKUP_EMAIL",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "password",
+              "value": "YOUR_LIBRELINKUP_PASSWORD",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Credentials",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ],
+      "id": "creds"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-de.libreview.io/llu/auth/login",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "product",
+              "value": "llu.android"
+            },
+            {
+              "name": "version",
+              "value": "4.12.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, password: $json.password }) }}",
+        "options": {}
+      },
+      "name": "Login LibreLinkUp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "login"
+    },
+    {
+      "parameters": {
+        "url": "https://api-de.libreview.io/llu/connections",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "product",
+              "value": "llu.android"
+            },
+            {
+              "name": "version",
+              "value": "4.16.0"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.data.authTicket.token }}"
+            },
+            {
+              "name": "Account-Id",
+              "value": "YOUR_LIBRELINKUP_ACCOUNT_ID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Connections",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "conns"
+    },
+    {
+      "parameters": {
+        "url": "=https://api-de.libreview.io/llu/connections/{{ $json.data[0].patientId }}/graph",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "product",
+              "value": "llu.android"
+            },
+            {
+              "name": "version",
+              "value": "4.16.0"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Login LibreLinkUp').item.json.data.authTicket.token }}"
+            },
+            {
+              "name": "Account-Id",
+              "value": "YOUR_LIBRELINKUP_ACCOUNT_ID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Graph Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "graph"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst current = data.data?.connection?.glucoseMeasurement;\nconst graphData = data.data?.graphData || [];\nfunction toUtcStr(ts){ if(!ts) return null; const d=new Date(ts); return isNaN(d.getTime())?null:d.toISOString(); }\nconst rows = graphData.map(point => ({\n  timestamp: point.Timestamp || point.FactoryTimestamp,\n  timestamp_utc: toUtcStr(point.FactoryTimestamp || point.Timestamp),\n  value_mgdl: point.ValueInMgPerDl,\n  trend: current?.TrendArrow || 0,\n  is_high: point.ValueInMgPerDl > 140,\n  is_low: point.ValueInMgPerDl < 70,\n  fetched_at: new Date().toISOString()\n}));\nif (current) rows.push({\n  timestamp: current.Timestamp || current.FactoryTimestamp,\n  timestamp_utc: toUtcStr(current.FactoryTimestamp || current.Timestamp),\n  value_mgdl: current.ValueInMgPerDl, trend: current.TrendArrow || 0,\n  is_high: current.ValueInMgPerDl > 140, is_low: current.ValueInMgPerDl < 70,\n  fetched_at: new Date().toISOString()\n});\nreturn rows.map(r => ({ json: r }));"
+      },
+      "name": "Parse CGM Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "parse"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nif (items.length === 0) return [{ json: { success: false, message: 'No data' } }];\nconst values = items.map(row => {\n  const ts = String(row.timestamp).replace(/'/g, \"''\");\n  const tsUtc = row.timestamp_utc ? \"'\" + String(row.timestamp_utc).replace(/'/g, \"''\") + \"'\" : 'NULL';\n  const isHigh = row.is_high ? 'true' : 'false';\n  const isLow = row.is_low ? 'true' : 'false';\n  const fetched = String(row.fetched_at).replace(/'/g, \"''\");\n  return \"('\" + ts + \"', \" + row.value_mgdl + \", \" + (row.trend||0) + \", \" + isHigh + \", \" + isLow + \", '\" + fetched + \"', \" + tsUtc + \")\";\n}).join(\",\\n\");\nconst sql = \"INSERT INTO blutzucker (timestamp, value_mgdl, trend, is_high, is_low, fetched_at, timestamp_utc) VALUES \" + values + \" ON CONFLICT (timestamp) DO UPDATE SET value_mgdl = EXCLUDED.value_mgdl, trend = EXCLUDED.trend, is_high = EXCLUDED.is_high, is_low = EXCLUDED.is_low, fetched_at = EXCLUDED.fetched_at, timestamp_utc = EXCLUDED.timestamp_utc;\";\nreturn [{ json: { query: sql, rowCount: items.length } }];"
+      },
+      "name": "Build SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "id": "buildsql"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-NEON-ENDPOINT.neon.tech/sql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Neon-Connection-String",
+              "value": "postgresql://USER:PASSWORD@YOUR-NEON-HOST/neondb?sslmode=require"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.query }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Write to Postgres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ],
+      "id": "write"
+    }
+  ],
+  "connections": {
+    "Every 5 min": {
+      "main": [
+        [
+          {
+            "node": "Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Credentials": {
+      "main": [
+        [
+          {
+            "node": "Login LibreLinkUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login LibreLinkUp": {
+      "main": [
+        [
+          {
+            "node": "Get Connections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Connections": {
+      "main": [
+        [
+          {
+            "node": "Get Graph Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Graph Data": {
+      "main": [
+        [
+          {
+            "node": "Parse CGM Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CGM Data": {
+      "main": [
+        [
+          {
+            "node": "Build SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SQL": {
+      "main": [
+        [
+          {
+            "node": "Write to Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
