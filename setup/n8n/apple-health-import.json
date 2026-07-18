@@ -1,0 +1,95 @@
+{
+  "name": "Innerloop — Apple Health Import (iOS Shortcut webhook → Postgres)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "apple-health",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "webhook",
+      "webhookId": "apple-health-import"
+    },
+    {
+      "parameters": {
+        "jsCode": "function toUtc(raw){ if(!raw) return null;\n  const m = raw.match(/^(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})\\s*([+-]\\d{4})?$/); if(!m) return null;\n  const base = m[1].replace(' ', 'T'); if(!m[2]) return base;\n  const sign = m[2][0]==='+'?1:-1; const oh=parseInt(m[2].substring(1,3)); const om=parseInt(m[2].substring(3,5));\n  const dt = new Date(base+'Z'); dt.setMinutes(dt.getMinutes() - sign*(oh*60+om));\n  return dt.toISOString().replace('T',' ').substring(0,19);\n}\nconst body = items[0].json.body; const inner = body.data || {};\nconst metrics = inner.metrics || (Array.isArray(body.data) ? body.data : []);\nconst workouts = inner.workouts || []; const rows = [];\nfor (const metric of metrics) {\n  const name = metric.name; const unit = metric.units || '';\n  if (name === 'sleep_analysis') {\n    for (const p of (metric.data||[])) { const ts = toUtc(p.sleepStart||p.date); if(!ts) continue;\n      for (const k of ['totalSleep','deep','rem','core','awake']) if (p[k]!==undefined)\n        rows.push({ metric: 'sleep_'+(k==='totalSleep'?'total':k), timestamp: ts, value: Number(p[k]), unit: 'hr' });\n    } continue;\n  }\n  for (const p of (metric.data||[])) { const ts = toUtc(p.date||p.startDate);\n    const val = p.qty!==undefined?p.qty:(p.Avg!==undefined?p.Avg:p.value);\n    if(!ts||val==null) continue; rows.push({ metric: name, timestamp: ts, value: Number(val), unit });\n  }\n}\nfor (const w of workouts) { const ts = toUtc(w.start||w.startDate); const tsEnd = toUtc(w.end); if(!ts) continue;\n  const name = w.name || 'Workout';\n  if (tsEnd) rows.push({ metric:'WorkoutDuration', timestamp:ts, value:Math.round(Math.abs((new Date(tsEnd+'Z')-new Date(ts+'Z'))/1000)), unit:name });\n  if (w.activeEnergy?.qty!==undefined) rows.push({ metric:'WorkoutActiveCalories', timestamp:ts, value:Number(w.activeEnergy.qty), unit:name });\n  if (w.distance?.qty!==undefined) rows.push({ metric:'WorkoutDistance', timestamp:ts, value:Number(w.distance.qty), unit:w.distance.units||'km' });\n  if (w.speed?.qty!==undefined) rows.push({ metric:'WorkoutSpeed', timestamp:ts, value:Number(w.speed.qty), unit:w.speed.units||'km/hr' });\n}\nconst CHUNK=500; const queries=[];\nfor (let i=0;i<rows.length;i+=CHUNK) { const chunk=rows.slice(i,i+CHUNK);\n  const values = chunk.map(r => \"('\"+String(r.timestamp).replace(/'/g,\"''\")+\"', '\"+String(r.metric).replace(/'/g,\"''\")+\"', \"+r.value+\", '\"+String(r.unit||'').replace(/'/g,\"''\")+\"', 'health-auto-export')\").join(',');\n  queries.push(\"INSERT INTO apple_health (timestamp, metric, value, unit, source) VALUES \"+values+\" ON CONFLICT DO NOTHING\");\n}\nif (queries.length===0) return [{ json:{ query:'SELECT 1', total:0 } }];\nreturn queries.map((query,i) => ({ json:{ query, batch:i+1, total_rows:rows.length } }));"
+      },
+      "name": "Parse Health Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "parse"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-NEON-ENDPOINT.neon.tech/sql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Neon-Connection-String",
+              "value": "postgresql://USER:PASSWORD@YOUR-NEON-HOST/neondb?sslmode=require"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.query || \"SELECT 1\" }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Write to Postgres",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "id": "write"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Health Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Health Data": {
+      "main": [
+        [
+          {
+            "node": "Write to Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
